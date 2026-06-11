@@ -10,6 +10,7 @@ script. When unread messages exist, dispatch a wake prompt to <adapter>.
 
 Adapters:
   openclaw    openclaw agent -m "<wake>" --json, then --local fallback
+  hermes      hermes -z "<wake>" --yolo --max-turns 6, then current-CLI fallback
 USAGE
 }
 
@@ -69,6 +70,9 @@ INBOX_SH="$AGMSG_SCRIPTS_DIR/inbox.sh"
 AGMSG_BIN="${AGMSG_BIN:-/opt/homebrew/bin/agmsg}"
 OPENCLAW_BIN="${OPENCLAW_BIN:-/opt/homebrew/bin/openclaw}"
 OPENCLAW_AGENT_ID="${OPENCLAW_AGENT_ID:-}"
+HERMES_BIN="${HERMES_BIN:-$HOME/.local/bin/hermes}"
+HERMES_MAX_TURNS="${HERMES_MAX_TURNS:-6}"
+HERMES_SKILLS="${HERMES_SKILLS:-agmsg-protocol}"
 LOG_FILE="$SCRIPT_DIR/.bridge-$AGENT.log"
 LOCK_DIR="$SCRIPT_DIR/.bridge-$AGENT.lock"
 
@@ -232,12 +236,76 @@ run_openclaw() {
   return 1
 }
 
+HERMES_LAST_OUTPUT=""
+HERMES_LAST_STATUS=0
+
+run_hermes_command() {
+  local label="$1"
+  local output status
+  shift
+
+  log "adapter=hermes ${label}_start"
+  if output=$("$HERMES_BIN" "$@" 2>&1); then
+    log "adapter=hermes ${label}_success output=$(compact "$output")"
+    return 0
+  else
+    status=$?
+    HERMES_LAST_OUTPUT="$output"
+    HERMES_LAST_STATUS="$status"
+    log "adapter=hermes ${label}_failed exit=$status output=$(compact "$output")"
+    return "$status"
+  fi
+}
+
+hermes_max_turns_unsupported() {
+  case "$1" in
+    *"invalid choice: '6'"*|*"unrecognized arguments: --max-turns"*|*"ambiguous option: --max-turns"*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+run_hermes() {
+  local wake_prompt="$1"
+  local -a skill_args
+
+  if [ ! -x "$HERMES_BIN" ]; then
+    log "adapter=hermes missing_executable path=$HERMES_BIN"
+    return 1
+  fi
+
+  skill_args=()
+  if [ -n "$HERMES_SKILLS" ]; then
+    skill_args+=(--skills "$HERMES_SKILLS")
+  fi
+
+  if run_hermes_command "oneshot_max_turns" -z "$wake_prompt" --yolo --max-turns "$HERMES_MAX_TURNS" "${skill_args[@]}"; then
+    return 0
+  fi
+
+  if hermes_max_turns_unsupported "$HERMES_LAST_OUTPUT"; then
+    log "adapter=hermes max_turns_unsupported_retry_without_max_turns"
+
+    if run_hermes_command "oneshot" -z "$wake_prompt" --yolo "${skill_args[@]}"; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
 dispatch_adapter() {
   local wake_prompt="$1"
 
   case "$ADAPTER" in
     openclaw)
       run_openclaw "$wake_prompt"
+      ;;
+    hermes)
+      run_hermes "$wake_prompt"
       ;;
     *)
       log "unknown_adapter adapter=$ADAPTER"

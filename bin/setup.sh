@@ -28,10 +28,18 @@ join_agent() {
 
 join_agent "claude" "claude-code"
 
-if ! join_agent "openclaw" "openclaw"; then
-  fallback_type="${AGMSG_OPENCLAW_FALLBACK_TYPE:-codex}"
-  printf 'Warning: official join.sh rejected type=openclaw; retrying openclaw as type=%s for this agmsg version.\n' "$fallback_type" >&2
-  join_agent "openclaw" "$fallback_type"
-fi
+join_with_fallback() {
+  local agent="$1"
+  local primary_type="$2"
+  local fallback_type="$3"
 
-printf 'Setup complete: team=%s agents=claude,openclaw\n' "$TEAM"
+  if ! join_agent "$agent" "$primary_type"; then
+    printf 'Warning: official join.sh rejected type=%s; retrying %s as type=%s for this agmsg version.\n' "$primary_type" "$agent" "$fallback_type" >&2
+    join_agent "$agent" "$fallback_type"
+  fi
+}
+
+join_with_fallback "openclaw" "openclaw" "${AGMSG_OPENCLAW_FALLBACK_TYPE:-codex}"
+join_with_fallback "hermes" "hermes" "${AGMSG_HERMES_FALLBACK_TYPE:-codex}"
+
+printf 'Setup complete: team=%s agents=claude,openclaw,hermes\n' "$TEAM"

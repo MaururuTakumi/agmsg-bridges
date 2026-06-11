@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.agmsg-bridges.front-desk-openclaw</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/takumihayashi/projects/agmsg-bridges/bin/agmsg-bridge.sh</string>
+    <string>front-desk</string>
+    <string>openclaw</string>
+    <string>openclaw</string>
+    <string>--interval</string>
+    <string>15</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/takumihayashi/projects/agmsg-bridges</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/takumihayashi/projects/agmsg-bridges/bin/.launchd-front-desk-openclaw.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/takumihayashi/projects/agmsg-bridges/bin/.launchd-front-desk-openclaw.err.log</string>
+</dict>
+</plist>

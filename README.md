@@ -53,10 +53,81 @@ For a single polling pass during tests:
 Logs and lock directories stay under `bin/`:
 
 ```text
-bin/.bridge-openclaw.log
-bin/.bridge-hermes.log
-bin/.bridge-openclaw.lock
-bin/.bridge-hermes.lock
+bin/.bridge-agmsg-bridges-openclaw.log
+bin/.bridge-agmsg-bridges-hermes.log
+bin/.bridge-agmsg-bridges-openclaw.lock
+bin/.bridge-agmsg-bridges-hermes.lock
+```
+
+## Front Desk Mesh
+
+The front-desk mesh converges user-facing OpenClaw and Hermes requests into one concierge inbox.
+The concierge can then route work to a project team such as `cmux-dashboard` and return the worker result to the original window agent.
+
+```text
+OpenClaw/Hermes -> agmsg team front-desk -> concierge -> project team -> concierge -> front-desk reply -> bridge -> OpenClaw/Hermes
+```
+
+Create or refresh the front-desk team with the official agmsg `join.sh` script:
+
+```sh
+cd /Users/takumihayashi/projects/agmsg-bridges
+./bin/setup-front-desk.sh
+```
+
+This registers:
+
+```text
+front-desk/concierge  type=claude-code
+front-desk/openclaw   type=openclaw, or codex fallback if this agmsg version rejects openclaw
+front-desk/hermes     type=hermes, or codex fallback if this agmsg version rejects hermes
+```
+
+Run front-desk reply bridges in the foreground:
+
+```sh
+./bin/agmsg-bridge.sh front-desk openclaw openclaw --interval 15
+./bin/agmsg-bridge.sh front-desk hermes hermes --interval 15
+```
+
+The OpenClaw adapter sends wake replies back to the last routed channel by default using:
+
+```text
+openclaw agent ... --deliver --reply-channel last
+```
+
+Use environment overrides only when a deployment needs an explicit target:
+
+```sh
+OPENCLAW_REPLY_CHANNEL=slack OPENCLAW_REPLY_TO="#reports" ./bin/agmsg-bridge.sh front-desk openclaw openclaw --interval 15
+OPENCLAW_DELIVER=0 ./bin/agmsg-bridge.sh front-desk openclaw openclaw --once
+```
+
+`openclaw doctor` currently reports legacy plugin metadata conflicts for `discord` and `slack`; this repository does not repair or rewrite that shared OpenClaw state. It also reports that Slack group messages are allowlisted with no allowed senders, so channel-origin Slack group E2E can be dropped until OpenClaw channel config is fixed outside this bridge repo.
+
+The matching front-desk logs and locks stay under `bin/`:
+
+```text
+bin/.bridge-front-desk-openclaw.log
+bin/.bridge-front-desk-hermes.log
+bin/.bridge-front-desk-openclaw.lock
+bin/.bridge-front-desk-hermes.lock
+```
+
+Launchd templates are available but are not installed automatically:
+
+```sh
+cp bin/launchd/com.agmsg-bridges.front-desk-openclaw.plist ~/Library/LaunchAgents/
+cp bin/launchd/com.agmsg-bridges.front-desk-hermes.plist ~/Library/LaunchAgents/
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.agmsg-bridges.front-desk-openclaw.plist
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.agmsg-bridges.front-desk-hermes.plist
+```
+
+To stop them:
+
+```sh
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/com.agmsg-bridges.front-desk-openclaw.plist
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/com.agmsg-bridges.front-desk-hermes.plist
 ```
 
 ## Send Examples

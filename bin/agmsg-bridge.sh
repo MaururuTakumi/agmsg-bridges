@@ -70,11 +70,17 @@ INBOX_SH="$AGMSG_SCRIPTS_DIR/inbox.sh"
 AGMSG_BIN="${AGMSG_BIN:-/opt/homebrew/bin/agmsg}"
 OPENCLAW_BIN="${OPENCLAW_BIN:-/opt/homebrew/bin/openclaw}"
 OPENCLAW_AGENT_ID="${OPENCLAW_AGENT_ID:-}"
+OPENCLAW_DELIVER="${OPENCLAW_DELIVER:-1}"
+OPENCLAW_REPLY_CHANNEL="${OPENCLAW_REPLY_CHANNEL:-last}"
+OPENCLAW_REPLY_TO="${OPENCLAW_REPLY_TO:-}"
+OPENCLAW_REPLY_ACCOUNT="${OPENCLAW_REPLY_ACCOUNT:-}"
 HERMES_BIN="${HERMES_BIN:-$HOME/.local/bin/hermes}"
 HERMES_MAX_TURNS="${HERMES_MAX_TURNS:-6}"
 HERMES_SKILLS="${HERMES_SKILLS:-agmsg-protocol}"
-LOG_FILE="$SCRIPT_DIR/.bridge-$AGENT.log"
-LOCK_DIR="$SCRIPT_DIR/.bridge-$AGENT.lock"
+SAFE_TEAM="$(printf '%s' "$TEAM" | tr -c 'A-Za-z0-9_.-' '_')"
+SAFE_AGENT="$(printf '%s' "$AGENT" | tr -c 'A-Za-z0-9_.-' '_')"
+LOG_FILE="$SCRIPT_DIR/.bridge-$SAFE_TEAM-$SAFE_AGENT.log"
+LOCK_DIR="$SCRIPT_DIR/.bridge-$SAFE_TEAM-$SAFE_AGENT.lock"
 
 timestamp() {
   date -u '+%Y-%m-%dT%H:%M:%SZ'
@@ -201,13 +207,33 @@ run_openclaw_command() {
 run_openclaw() {
   local wake_prompt="$1"
   local agent_id
+  local -a delivery_args
 
   if [ ! -x "$OPENCLAW_BIN" ]; then
     log "adapter=openclaw missing_executable path=$OPENCLAW_BIN"
     return 1
   fi
 
-  if run_openclaw_command "gateway" -m "$wake_prompt" --json; then
+  delivery_args=()
+  case "$OPENCLAW_DELIVER" in
+    0|false|FALSE|off|OFF|no|NO)
+      ;;
+    *)
+      delivery_args+=(--deliver)
+      ;;
+  esac
+  if [ -n "$OPENCLAW_REPLY_CHANNEL" ]; then
+    delivery_args+=(--reply-channel "$OPENCLAW_REPLY_CHANNEL")
+  fi
+  if [ -n "$OPENCLAW_REPLY_TO" ]; then
+    delivery_args+=(--reply-to "$OPENCLAW_REPLY_TO")
+  fi
+  if [ -n "$OPENCLAW_REPLY_ACCOUNT" ]; then
+    delivery_args+=(--reply-account "$OPENCLAW_REPLY_ACCOUNT")
+  fi
+  log "adapter=openclaw delivery deliver=$OPENCLAW_DELIVER reply_channel=${OPENCLAW_REPLY_CHANNEL:-none} reply_to=${OPENCLAW_REPLY_TO:-none} reply_account=${OPENCLAW_REPLY_ACCOUNT:-none}"
+
+  if run_openclaw_command "gateway" -m "$wake_prompt" "${delivery_args[@]}" --json; then
     return 0
   fi
 
@@ -218,18 +244,18 @@ run_openclaw() {
     fi
     log "adapter=openclaw resolved_agent=$agent_id"
 
-    if run_openclaw_command "gateway_with_agent" --agent "$agent_id" -m "$wake_prompt" --json; then
+    if run_openclaw_command "gateway_with_agent" --agent "$agent_id" -m "$wake_prompt" "${delivery_args[@]}" --json; then
       return 0
     fi
 
-    if run_openclaw_command "local_fallback_with_agent" --agent "$agent_id" -m "$wake_prompt" --json --local; then
+    if run_openclaw_command "local_fallback_with_agent" --agent "$agent_id" -m "$wake_prompt" "${delivery_args[@]}" --json --local; then
       return 0
     fi
 
     return 1
   fi
 
-  if run_openclaw_command "local_fallback" -m "$wake_prompt" --json --local; then
+  if run_openclaw_command "local_fallback" -m "$wake_prompt" "${delivery_args[@]}" --json --local; then
     return 0
   fi
 

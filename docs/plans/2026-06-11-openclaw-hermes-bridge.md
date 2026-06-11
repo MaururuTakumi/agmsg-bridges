@@ -46,3 +46,15 @@ S2: 「hermes アダプタを追加し同様の live E2E。hermes は `-z --yolo
 ## 7. Evaluator観点（Opus）
 - 静的: agmsg 本体/openclaw設定/hermes設定への書き込みが無いこと（git status とファイル mtime）。lock/hwm/スキップの実装。wake 文に返信プロトコルと本文全文。
 - 動的: bin/setup.sh から素の状態で E2E を**自分で再実行**し、openclaw・hermes 双方の往復を確認（メッセージIDと文面を証跡化）。タイムアウトや gateway 停止時の挙動（スキップ+ログ）も1ケース確認。
+
+## 8. 方針転換（2026-06-11 ユーザー指示・最優先）
+**主フローの再定義**: ユーザーは openclaw / hermes に指示を出す。そこを起点に agmsg で claude/codex へ仕事が流れる。
+```
+ユーザー → openclaw/hermes（窓口） → agmsg send → claude/codex（作業） → agmsg reply → ブリッジ → 窓口 → ユーザー
+```
+- 新 Sprint 1b（最優先）: openclaw と hermes それぞれに **$agmsg の使い方を教える導入物**を入れる:
+  - openclaw: workspace のスキル/instructions に「agmsg プロトコル」（whoami→join→send/inbox、グローバル `agmsg` コマンド使用、宛先一覧の取得方法）を追加（config.json 本体は触らない。スキル/ワークスペースファイルの追加のみ）。
+  - hermes: `hermes skills` の仕組みで同等のスキルを追加。
+  - E2E: 「openclaw に自然文で指示 → openclaw が自分で agmsg send → claude 側 inbox に届く」を実証。hermes も同様。
+- 既存 S1（ブリッジ）は「返信経路」として継続。最終受入 = **窓口起点のフルラウンドトリップ**。
+- 開発体制: codex への指示も $agmsg（team: agmsg-bridges）でやり取りする。
